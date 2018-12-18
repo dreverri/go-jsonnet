@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -31,6 +32,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/google/go-jsonnet"
+	jsonnetAst "github.com/google/go-jsonnet/ast"
 )
 
 func nextArg(i *int, args []string) string {
@@ -496,6 +498,24 @@ func writeOutputFile(output string, outputFile string, createDirs bool) error {
 	return err
 }
 
+// Taken from https://github.com/ksonnet/kubecfg
+func registerNativeFunctions(vm *jsonnet.VM) {
+	vm.NativeFunction(&jsonnet.NativeFunction{
+		Name:   "manifestJsonEx",
+		Params: []jsonnetAst.Identifier{"json", "indent"},
+		Func: func(args []interface{}) (res interface{}, err error) {
+			value := args[0]
+			indent := args[1].(string)
+			data, err := json.MarshalIndent(value, "", indent)
+			if err != nil {
+				return "", err
+			}
+			data = append(data, byte('\n'))
+			return string(data), nil
+		},
+	})
+}
+
 func main() {
 	// https://blog.golang.org/profiling-go-programs
 	var cpuprofile = os.Getenv("JSONNET_CPU_PROFILE")
@@ -510,6 +530,7 @@ func main() {
 
 	vm := jsonnet.MakeVM()
 	vm.ErrorFormatter.SetColorFormatter(color.New(color.FgRed).Fprintf)
+	registerNativeFunctions(vm)
 
 	config := makeConfig()
 	jsonnetPath := filepath.SplitList(os.Getenv("JSONNET_PATH"))
